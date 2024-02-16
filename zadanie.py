@@ -182,9 +182,8 @@ def menu():
     while True:
         print("Wybierz tryb działania programu:")
         print("1. Tryb interaktywny")
-        print("2. Tryb wsadowy")
-        print("3. Wyswietl fakturę po ID")
-        print("4. Wyjdź")
+        print("2. Wyswietl fakturę po ID")
+        print("3. Wyjdź")
 
         wybor = input("Wybierz opcję: ")
 
@@ -243,14 +242,10 @@ def menu():
             faktura.zapisz_do_pliku(platnosc)
             wyswietl_fakture_po_id(faktura.id)
         elif wybor == "2":
-            liczba_faktur = int(input("Podaj ile wygenerowac losowych faktur: "))
-            zapisz_do_json("faktury.json" , liczba_faktur)
-            pass
-        elif wybor == "3":
             max = wczytaj_najwieksze_id()
             szukane_id = int(input("Podaj id szukanej faktury od 0 do " + str(max) +": "))
             wyswietl_fakture_po_id(szukane_id)
-        elif wybor == "4":
+        elif wybor == "3":
             # Wyjście z programu
             break
         else:
