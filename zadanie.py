@@ -33,24 +33,33 @@ def pobierz_dane_z_bazy(waluta, data):  #Patrzy kurs danej waluty na dany dzień
         print(f"Błąd podczas pobierania danych: {response.status_code}")
         return None, None
 def wczytaj_najwieksze_id():
-    try:
-        with open("faktury.json", "r") as plik:
-            faktury = json.load(plik) 
-            return max([faktura['Faktura']['id'] for faktura in faktury])
-    except (FileNotFoundError, ValueError):
-        return 0
+    if not os.path.exists('faktury.json'):
+        with open('faktury.json', 'w') as plik:
+        plik.write('[]')  # Utwórz pusty plik JSON
+    else:
+        try:
+            with open("faktury.json", "r") as plik:
+                faktury = json.load(plik) 
+                return max([faktura['Faktura']['id'] for faktura in faktury])
+        except (ValueError):
+            return 0
     
 def wyswietl_fakture_po_id(id):
-    with open("faktury.json", 'r') as plik:
-        faktury = json.load(plik)
-        for faktura in faktury:
-            if faktura["Faktura"]["id"] == id:
-                print("Faktura:")
-                print(faktura["Faktura"])
-                print("Płatność:")
-                print(faktura["Platnosc"])
-                return
-        print("Nie znaleziono faktury o podanym ID.")
+    if not os.path.exists('faktury.json'): #jezeli nie istnieje, utworz go
+    with open('faktury.json','w') as plik:
+        plik.write('[]') #utworz pusty plik JSON
+    Print("Plik z fakturami nie istniał, został utworzony, proszę dodaj fakturę do pliku, aby wyczytać po ID.")
+    else:    
+        with open("faktury.json", 'r') as plik:
+            faktury = json.load(plik)
+            for faktura in faktury:
+                if faktura["Faktura"]["id"] == id:
+                    print("Faktura:")
+                    print(faktura["Faktura"])
+                    print("Płatność:")
+                    print(faktura["Platnosc"])
+                    return
+            print("Nie znaleziono faktury o podanym ID.")
 
 class Faktura: 
     def __init__(self,id):
@@ -65,7 +74,6 @@ class Faktura:
                 self.kwota = float(input("Podaj kwotę faktury: "))
                 if self.kwota < 0:
                     raise ValueError("Kwota nie może być ujemna.")
-                
             except ValueError as e:
                 print(e)
                 continue  # Kontynuuj pętlę, aby poprosić użytkownika o ponowne wprowadzenie danych
@@ -109,17 +117,20 @@ class Faktura:
             "waluta": platnosc.waluta,
             "data_platnosci": platnosc.data_platnosci,
         }
+        if not os.path.exists('faktury.json'):
+            with open('faktury.json', 'w') as plik:
+            plik.write('[]')  # Utwórz pusty plik JSON
         try:
             with open("faktury.json", "r") as plik:
                 faktury = json.load(plik)
         except (FileNotFoundError, json.JSONDecodeError):
             faktury = []
-        faktury.append({"Faktura": dane_faktury, "Platnosc": dane_platnosci})
-        try:    
-            with open("faktury.json", "w") as plik:
-                json.dump(faktury, plik)
-        except IOError as e:
-            print(f"Błąd podczas zapisywania do pliku: {e}")
+            faktury.append({"Faktura": dane_faktury, "Platnosc": dane_platnosci})
+            try:    
+                with open("faktury.json", "w") as plik:
+                    json.dump(faktury, plik)
+            except IOError as e:
+                print(f"Błąd podczas zapisywania do pliku: {e}")
 
 class Platnosc:
     def __init__(self, id_faktury):
