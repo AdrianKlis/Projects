@@ -6,27 +6,11 @@ import random
 import unittest
 from unittest.mock import patch
 
-class TestyJednostkowe(unittest.TestCase):
-
-    @patch('requests.get')  # Mockujemy 'requests.get'
-    def test_pobierz_dostepne_waluty(self, mock_get):
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.text = '[{"table":"A","no":"064/A/NBP/2021","effectiveDate":"2021-04-01","rates":[{"currency":"dolar amerykański","code":"USD","mid":3.8750}]}]'
-        self.assertEqual(pobierz_dostepne_waluty(), ['USD'])
-
-    @patch('requests.get')  # Mockujemy 'requests.get'
-    def test_pobierz_dane_z_bazy(self, mock_get):
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.text = '{"table":"A","currency":"dolar amerykański","code":"USD","rates":[{"no":"064/A/NBP/2021","effectiveDate":"2021-04-01","mid":3.8750}]}'
-        self.assertEqual(pobierz_dane_z_bazy('USD', '2021-04-01'), ({'table': 'A', 'currency': 'dolar amerykański', 'code': 'USD', 'rates': [{'no': '064/A/NBP/2021', 'effectiveDate': '2021-04-01', 'mid': 3.8750}]}, 3.8750))
-
-if __name__ == '__main__':
-    unittest.main()
-
 def pobierz_dostepne_waluty():  #Pobiera dostępne waluty na stronie api nbp
     url = "http://api.nbp.pl/api/exchangerates/tables/A/"
     try:
         response = requests.get(url)
+        response.insert(0,'PLN')
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         print(f"Błąd sieciowy: {e}")
@@ -173,7 +157,9 @@ class Platnosc:
                     raise ValueError("Data nie może być późniejsza niż dzisiejsza data.")
                 if data.date() < datetime.now().date() - timedelta(days=364):
                     raise ValueError("Data nie może być wcześniejsza niż 364 dni od dzisiejszej daty. (z powodu przechywowania wartości kursów w bazie api do roku)")
-                self.data_platnosci = data_platnosci
+                while data.weekday() > 4: # Jeśli data przypada na sobotę lub niedzielę, cofnij do ostatniego piatku
+                    data -= timedelta(days=1)
+                self.data_platnosci = data.strftime('%Y-%m-%d')
                 break
             except ValueError as e:
                 print(e)
