@@ -3,14 +3,11 @@ from datetime import datetime, timedelta
 import json
 import os
 import random
-import unittest
-from unittest.mock import patch
 
 def pobierz_dostepne_waluty():  #Pobiera dostępne waluty na stronie api nbp
     url = "http://api.nbp.pl/api/exchangerates/tables/A/"
     try:
         response = requests.get(url)
-        response.insert(0,'PLN')
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         print(f"Błąd sieciowy: {e}")
@@ -32,10 +29,11 @@ def pobierz_dane_z_bazy(waluta, data):  #Patrzy kurs danej waluty na dany dzień
     else:
         print(f"Błąd podczas pobierania danych: {response.status_code}")
         return None, None
+
 def wczytaj_najwieksze_id():
     if not os.path.exists('faktury.json'):
         with open('faktury.json', 'w') as plik:
-        plik.write('[]')  # Utwórz pusty plik JSON
+            plik.write('[]')  # Utwórz pusty plik JSON
     else:
         try:
             with open("faktury.json", "r") as plik:
@@ -46,9 +44,9 @@ def wczytaj_najwieksze_id():
     
 def wyswietl_fakture_po_id(id):
     if not os.path.exists('faktury.json'): #jezeli nie istnieje, utworz go
-    with open('faktury.json','w') as plik:
-        plik.write('[]') #utworz pusty plik JSON
-    Print("Plik z fakturami nie istniał, został utworzony, proszę dodaj fakturę do pliku, aby wyczytać po ID.")
+        with open('faktury.json','w') as plik:
+            plik.write('[]') #utworz pusty plik JSON
+        print("Plik z fakturami nie istniał, został utworzony, proszę dodaj fakturę do pliku, aby wyczytać po ID.")
     else:    
         with open("faktury.json", 'r') as plik:
             faktury = json.load(plik)
@@ -60,6 +58,35 @@ def wyswietl_fakture_po_id(id):
                     print(faktura["Platnosc"])
                     return
             print("Nie znaleziono faktury o podanym ID.")
+            
+def wczytaj_plik_wsadowy_i_zapisz_do_pliku():
+    if not os.path.exists('plik_wsadowy.json'):
+        print("Plik wsadowy nie istnieje.")
+        return
+    try:
+        with open("plik_wsadowy.json", "r") as plik:
+            faktury = json.load(plik)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Błąd podczas wczytywania pliku wsadowego: {e}")
+        return
+    najwieksze_id = wczytaj_najwieksze_id()
+    for faktura in faktury:
+        faktura['Faktura']['id'] = najwieksze_id + 1
+        najwieksze_id += 1
+    if not os.path.exists('faktury.json'):
+        with open('faktury.json', 'w') as plik:
+            plik.write('[]')  # Utwórz pusty plik JSON
+    try:
+        with open("faktury.json", "r") as plik:
+            istniejace_faktury = json.load(plik)
+    except (FileNotFoundError, json.JSONDecodeError):
+        istniejace_faktury = []
+    istniejace_faktury.extend(faktury)
+    try:    
+        with open("faktury.json", "w") as plik:
+            json.dump(istniejace_faktury, plik)
+    except IOError as e:
+        print(f"Błąd podczas zapisywania do pliku: {e}")
 
 class Faktura: 
     def __init__(self,id):
@@ -119,7 +146,7 @@ class Faktura:
         }
         if not os.path.exists('faktury.json'):
             with open('faktury.json', 'w') as plik:
-            plik.write('[]')  # Utwórz pusty plik JSON
+                plik.write('[]')  # Utwórz pusty plik JSON
         try:
             with open("faktury.json", "r") as plik:
                 faktury = json.load(plik)
@@ -138,6 +165,7 @@ class Platnosc:
         self.kwota = None
         self.waluta = None
         self.data_platnosci = None
+        self.data_platnosci_piatek = None
 
     def wprowadz_dane(self, dostepne_waluty):
         while True:
@@ -166,12 +194,15 @@ class Platnosc:
                 data = datetime.strptime(data_platnosci, '%Y-%m-%d')
                 if data.date() > datetime.now().date():
                     raise ValueError("Data nie może być późniejsza niż dzisiejsza data.")
-                if data.date() < datetime.now().date() - timedelta(days=364):
-                    raise ValueError("Data nie może być wcześniejsza niż 364 dni od dzisiejszej daty. (z powodu przechywowania wartości kursów w bazie api do roku)")
-                while data.weekday() > 4: # Jeśli data przypada na sobotę lub niedzielę, cofnij do ostatniego piatku
-                    data -= timedelta(days=1)
-                self.data_platnosci = data.strftime('%Y-%m-%d')
-                break
+                if data.weekday() > 4:
+                    self.data_platnosci = data.strftime('%Y-%m-%d')
+                    while data.weekday() > 4: # Jeśli data przypada na sobotę lub niedzielę, cofnij do ostatniego piatku
+                        data -= timedelta(days=1)
+                    self.data_platnosci_piatek = data.strftime('%Y-%m-%d')
+                    break
+                elif data.weekday() < 5: 
+                    self.data_platnosci = data.strftime('%Y-%m-%d')
+                    break
             except ValueError as e:
                 print(e)
 
