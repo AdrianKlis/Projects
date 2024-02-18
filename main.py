@@ -58,8 +58,17 @@ def wyswietl_fakture_po_id(id):
                     print(faktura["Platnosc"])
                     return
             print("Nie znaleziono faktury o podanym ID.")
-            
-def wczytaj_plik_wsadowy_i_zapisz_do_pliku():
+
+def wczytaj_plik_wsadowy_i_zapis_do_pliku():
+    """
+    Funkcja wczytuje dane z pliku wsadowego, przypisuje unikalne id fakturze na podstawie największego id w pliku faktury.json,
+    a następnie zapisuje te dane do pliku faktury.json.
+
+    Jeśli plik wsadowy nie istnieje, funkcja wyświetla komunikat o błędzie i kończy działanie.
+    Jeśli wystąpi błąd podczas wczytywania pliku wsadowego, funkcja wyświetla komunikat o błędzie i kończy działanie.
+    Jeśli plik faktury.json nie istnieje, funkcja tworzy pusty plik JSON.
+    Jeśli wystąpi błąd podczas zapisywania do pliku faktury.json, funkcja wyświetla komunikat o błędzie.
+    """
     if not os.path.exists('plik_wsadowy.json'):
         print("Plik wsadowy nie istnieje.")
         return
@@ -89,11 +98,27 @@ def wczytaj_plik_wsadowy_i_zapisz_do_pliku():
         print(f"Błąd podczas zapisywania do pliku: {e}")
 
 class Faktura: 
+    """
+    Klasa reprezentująca fakturę.
+
+    Atrybuty:
+    id (int): Unikalny identyfikator faktury.
+    kwota (float): Kwota faktury.
+    waluta (str): Waluta, w której wystawiona jest faktura.
+    data_wystawienia (str): Data wystawienia faktury w formacie 'YYYY-MM-DD'.
+    data_wystawienia_weekend (str): Data wystawienia faktury przesunięta na ostatni piątek, jeśli data wystawienia przypada na weekend, jest to zmienna ukryta, wykorzystywana tylko i wylacznie do pobrania kursu na piatek przed weekendem..
+    status (str): Status faktury.
+
+    Metody:
+    wprowadz_dane(dostepne_waluty): Prosi użytkownika o wprowadzenie danych faktury.
+    zapisz_do_pliku(platnosc): Zapisuje dane faktury i płatności do pliku 'faktury.json'.
+    """
     def __init__(self,id):
         self.id = id
         self.kwota = None
         self.waluta = None
         self.data_wystawienia = None
+        self.data_wystawienia_weekend = None
         self.status = None
     def wprowadz_dane(self, dostepne_waluty):
         while True:
@@ -120,13 +145,14 @@ class Faktura:
             data_wystawienia = input("Podaj datę wystawienia faktury (YYYY-MM-DD): ")
             try:
                 data = datetime.strptime(data_wystawienia, '%Y-%m-%d')
+                self.data_wystawienia = data.strftime('%Y-%m-%d')
                 if data.date() > datetime.now().date():
                     raise ValueError("Data nie może być późniejsza niż dzisiejsza data.")
-                elif data.date() < datetime.now().date() - timedelta(days=364):
-                    raise ValueError("Data nie może być wcześniejsza niż 364 dni od dzisiejszej daty. W odlegleszej niz 364 dni baza dana api zwraca blad")
-                else:
-                    self.data_wystawienia = data_wystawienia
-                    break
+                if data.weekday() > 4:
+                        while data.weekday() > 4: # Jeśli data przypada na sobotę lub niedzielę, cofnij do ostatniego piatku
+                            data -= timedelta(days=1)
+                        self.data_wystawienia_weekend = data.strftime('%Y-%m-%d')
+                        break
             except ValueError as e:
                 print(e)
 
@@ -160,6 +186,19 @@ class Faktura:
                 print(f"Błąd podczas zapisywania do pliku: {e}")
 
 class Platnosc:
+       """
+    Klasa reprezentująca płatność za fakturę.
+
+    Atrybuty:
+    id_faktury (int): Identyfikator faktury, do której odnosi się płatność.
+    kwota (float): Kwota płatności.
+    waluta (str): Waluta, w której dokonano płatności.
+    data_platnosci (str): Data płatności w formacie 'YYYY-MM-DD'.
+    data_platnosci_piatek (str): Data płatności przesunięta na ostatni piątek, jeśli data płatności przypada na weekend.
+
+    Metody:
+    wprowadz_dane(dostepne_waluty): Prosi użytkownika o wprowadzenie danych płatności.
+    """
     def __init__(self, id_faktury):
         self.id_faktury = id_faktury
         self.kwota = None
@@ -168,43 +207,42 @@ class Platnosc:
         self.data_platnosci_piatek = None
 
     def wprowadz_dane(self, dostepne_waluty):
-        while True:
-            try:
-                self.kwota = float(input("Podaj kwotę płatności: "))
-                if self.kwota < 0:
-                    raise ValueError("Kwota nie może być ujemna.")
-                break
-            except ValueError as e:
-                print(e)
+        oplata = str(input("Czy istnieje płatność do faktury? (Tak/Nie)"))
+        if oplata.lower() == "tak":
+            while True:
+                try:
+                    self.kwota = float(input("Podaj kwotę płatności: "))
+                    if self.kwota < 0:
+                        raise ValueError("Kwota nie może być ujemna.")
+                    break
+                except ValueError as e:
+                    print(e)
 
-        print("Dostępne waluty: ", ', '.join(dostepne_waluty))
-        while True:
-            self.waluta = input("Podaj walutę płatności (lub zostaw puste dla PLN): ")
-            if self.waluta.strip() == "":
-                        self.waluta = "PLN"
+            print("Dostępne waluty: ", ', '.join(dostepne_waluty))
+            while True:
+                self.waluta = input("Podaj walutę płatności (lub zostaw puste dla PLN): ")
+                if self.waluta.strip() == "":
+                            self.waluta = "PLN"
+                            break
+                elif self.waluta not in dostepne_waluty:
+                    print("Podana waluta nie jest dostępna. Wybierz jedną z dostępnych walut.")
+                else:
+                    break
+
+            while True:
+                data_platnosci = input("Podaj datę wystawienia Płatności (YYYY-MM-DD): ")
+                try:
+                    data = datetime.strptime(data_platnosci, '%Y-%m-%d')
+                    self.data_platnosci = data.strftime('%Y-%m-%d')
+                    if data.date() > datetime.now().date():
+                        raise ValueError("Data nie może być późniejsza niż dzisiejsza data.")
+                    if data.weekday() > 4:
+                        while data.weekday() > 4: # Jeśli data przypada na sobotę lub niedzielę, cofnij do ostatniego piatku
+                            data -= timedelta(days=1)
+                        self.data_platnosci_piatek = data.strftime('%Y-%m-%d')
                         break
-            elif self.waluta not in dostepne_waluty:
-                print("Podana waluta nie jest dostępna. Wybierz jedną z dostępnych walut.")
-            else:
-                break
-
-        while True:
-            data_platnosci = input("Podaj datę wystawienia Płatności (YYYY-MM-DD): ")
-            try:
-                data = datetime.strptime(data_platnosci, '%Y-%m-%d')
-                if data.date() > datetime.now().date():
-                    raise ValueError("Data nie może być późniejsza niż dzisiejsza data.")
-                if data.weekday() > 4:
-                    self.data_platnosci = data.strftime('%Y-%m-%d')
-                    while data.weekday() > 4: # Jeśli data przypada na sobotę lub niedzielę, cofnij do ostatniego piatku
-                        data -= timedelta(days=1)
-                    self.data_platnosci_piatek = data.strftime('%Y-%m-%d')
-                    break
-                elif data.weekday() < 5: 
-                    self.data_platnosci = data.strftime('%Y-%m-%d')
-                    break
-            except ValueError as e:
-                print(e)
+                except ValueError as e:
+                    print(e)
 
 def menu():
     while True:
@@ -229,7 +267,11 @@ def menu():
                 if faktura.waluta == "PLN":
                     kurs_faktura = 1
                 else:
-                    dane_faktura, kurs_faktura = pobierz_dane_z_bazy(faktura.waluta, faktura.data_wystawienia)
+                    if faktura.data_wystawienia_weekend is not None:
+
+
+                    else:    
+                        dane_faktura, kurs_faktura = pobierz_dane_z_bazy(faktura.waluta, faktura.data_wystawienia)
 
                 if platnosc.waluta == "PLN":
                     kurs_platnosc = 1
