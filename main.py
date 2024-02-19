@@ -15,6 +15,7 @@ def pobierz_dostepne_waluty():  #Pobiera dostępne waluty na stronie api nbp
 
     dane = json.loads(response.text)
     waluty = [pozycja["code"] for pozycja in dane[0]["rates"]]
+    waluty.append("PLN")
     return waluty
 def pobierz_dane_z_bazy(waluta, data):  #Patrzy kurs danej waluty na dany dzień
     print(f"Waluta: {waluta}, Data: {data}")  # Debugging
@@ -34,12 +35,16 @@ def wczytaj_najwieksze_id():
     if not os.path.exists('faktury.json'):
         with open('faktury.json', 'w') as plik:
             plik.write('[]')  # Utwórz pusty plik JSON
+        return 0
     else:
         try:
+            ids = []
             with open("faktury.json", "r") as plik:
-                faktury = json.load(plik) 
-                return max([faktura['Faktura']['id'] for faktura in faktury])
-        except (ValueError):
+                for linia in plik: 
+                    faktura = json.loads(linia)
+                    ids.append(faktura['Faktura']['id'])
+            return max(ids)
+        except (ValueError, json.JSONDecodeError):
             return 0
     
 def wyswietl_fakture_po_id(id):
@@ -49,15 +54,34 @@ def wyswietl_fakture_po_id(id):
         print("Plik z fakturami nie istniał, został utworzony, proszę dodaj fakturę do pliku, aby wyczytać po ID.")
     else:    
         with open("faktury.json", 'r') as plik:
-            faktury = json.load(plik)
-            for faktura in faktury:
+            for linia in plik:
+                faktura = json.loads(linia)
                 if faktura["Faktura"]["id"] == id:
                     print("Faktura:")
                     print(faktura["Faktura"])
                     print("Płatność:")
-                    print(faktura["Platnosc"])
+                    if "Platnosc" not in faktura or faktura["Platnosc"]["kwota"] == 0.0:
+                        print("Faktura nie posiada żadnej płatności.")
+                    else:
+                        print(faktura["Platnosc"])
                     return
             print("Nie znaleziono faktury o podanym ID.")
+
+def wczytaj_najmniejsze_id(): #Funkcja tylko i wylacznie do opcji wyswietl fakture po id
+    if not os.path.exists('faktury.json'):
+        with open('faktury.json', 'w') as plik:
+            plik.write('[]')  # Utwórz pusty plik JSON
+        return 0
+    else:
+        try:
+            ids = []
+            with open("faktury.json", "r") as plik:
+                for linia in plik: 
+                    faktura = json.loads(linia)
+                    ids.append(faktura['Faktura']['id'])
+            return min(ids)
+        except (ValueError, json.JSONDecodeError):
+            return 0
 
 def wczytaj_plik_wsadowy_i_zapis_do_pliku():
     """
@@ -81,21 +105,41 @@ def wczytaj_plik_wsadowy_i_zapis_do_pliku():
     najwieksze_id = wczytaj_najwieksze_id()
     for faktura in faktury:
         faktura['Faktura']['id'] = najwieksze_id + 1
+        faktura['Platnosc']['id'] = najwieksze_id + 1
         najwieksze_id += 1
     if not os.path.exists('faktury.json'):
         with open('faktury.json', 'w') as plik:
             plik.write('[]')  # Utwórz pusty plik JSON
     try:
-        with open("faktury.json", "r") as plik:
-            istniejace_faktury = json.load(plik)
-    except (FileNotFoundError, json.JSONDecodeError):
-        istniejace_faktury = []
-    istniejace_faktury.extend(faktury)
-    try:    
-        with open("faktury.json", "w") as plik:
-            json.dump(istniejace_faktury, plik)
+        with open("faktury.json", "a") as plik:  # Zmieniono tryb na 'a' (append)
+            for faktura in faktury:
+                json.dump(faktura, plik)
+                plik.write('\n')  # Dodajemy nową linię po każdej fakturze
     except IOError as e:
         print(f"Błąd podczas zapisywania do pliku: {e}")
+def zapisz_do_pliku(faktura, platnosc):
+        #zapisz_do_pliku(faktura, platnosc): Zapisuje dane faktury i płatności do pliku 'faktury.json'.
+        dane = {
+            'Faktura': {
+                "id": faktura.id,
+                "kwota": faktura.kwota,
+                "waluta": faktura.waluta,
+                "data_wystawienia": faktura.data_wystawienia,
+                "status": faktura.status,
+            },
+            'Platnosc': {
+            "id": platnosc.id_faktury,
+            "kwota": platnosc.kwota,
+            "waluta": platnosc.waluta,
+            "data_platnosci": platnosc.data_platnosci,
+            }
+        }
+        if not os.path.exists('faktury.json'):
+            with open('faktury.json', 'w') as plik:
+                plik.write('[]')  # Utwórz pusty plik JSON
+        with open('faktury.json', 'a') as f:
+            f.write(json.dumps(dane) + "\n")
+
 
 class Faktura: 
     """
@@ -111,7 +155,6 @@ class Faktura:
 
     Metody:
     wprowadz_dane(dostepne_waluty): Prosi użytkownika o wprowadzenie danych faktury.
-    zapisz_do_pliku(platnosc): Zapisuje dane faktury i płatności do pliku 'faktury.json'.
     """
     def __init__(self,id):
         self.id = id
@@ -120,6 +163,7 @@ class Faktura:
         self.data_wystawienia = None
         self.data_wystawienia_weekend = None
         self.status = None
+        self.platnosc = None
     def wprowadz_dane(self, dostepne_waluty):
         while True:
             try:
@@ -132,11 +176,8 @@ class Faktura:
             break
         while True:
             print("Dostępne waluty: ", ', '.join(dostepne_waluty))
-            self.waluta = input("Podaj walutę faktury (lub zostaw puste dla PLN): ")
-            if self.waluta.strip() == "":
-                self.waluta = "PLN"
-                break
-            elif self.waluta not in dostepne_waluty:
+            self.waluta = input("Podaj walutę faktury: ")
+            if self.waluta not in dostepne_waluty:
                 print("Podana waluta nie jest dostępna. Wybierz jedną z dostępnych walut.")
                 continue  # Kontynuuj pętlę, aby poprosić użytkownika o ponowne wprowadzenie danych
             else: 
@@ -152,41 +193,12 @@ class Faktura:
                         while data.weekday() > 4: # Jeśli data przypada na sobotę lub niedzielę, cofnij do ostatniego piatku
                             data -= timedelta(days=1)
                         self.data_wystawienia_weekend = data.strftime('%Y-%m-%d')
-                        break
+                break
             except ValueError as e:
                 print(e)
 
-    def zapisz_do_pliku(self, platnosc):
-        dane_faktury = {
-            "id": self.id,
-            "kwota": self.kwota,
-            "waluta": self.waluta,
-            "data_wystawienia": self.data_wystawienia,
-            "status": self.status,
-        }
-        dane_platnosci = {
-            "id": platnosc.id_faktury,
-            "kwota": platnosc.kwota,
-            "waluta": platnosc.waluta,
-            "data_platnosci": platnosc.data_platnosci,
-        }
-        if not os.path.exists('faktury.json'):
-            with open('faktury.json', 'w') as plik:
-                plik.write('[]')  # Utwórz pusty plik JSON
-        try:
-            with open("faktury.json", "r") as plik:
-                faktury = json.load(plik)
-        except (FileNotFoundError, json.JSONDecodeError):
-            faktury = []
-            faktury.append({"Faktura": dane_faktury, "Platnosc": dane_platnosci})
-            try:    
-                with open("faktury.json", "w") as plik:
-                    json.dump(faktury, plik)
-            except IOError as e:
-                print(f"Błąd podczas zapisywania do pliku: {e}")
-
 class Platnosc:
-       """
+    """
     Klasa reprezentująca płatność za fakturę.
 
     Atrybuty:
@@ -204,10 +216,10 @@ class Platnosc:
         self.kwota = None
         self.waluta = None
         self.data_platnosci = None
-        self.data_platnosci_piatek = None
+        self.data_platnosci_weekend = None
 
     def wprowadz_dane(self, dostepne_waluty):
-        oplata = str(input("Czy istnieje płatność do faktury? (Tak/Nie)"))
+        oplata = str(input("Czy istnieje płatność do faktury? (Tak/Nie): "))
         if oplata.lower() == "tak":
             while True:
                 try:
@@ -220,12 +232,10 @@ class Platnosc:
 
             print("Dostępne waluty: ", ', '.join(dostepne_waluty))
             while True:
-                self.waluta = input("Podaj walutę płatności (lub zostaw puste dla PLN): ")
-                if self.waluta.strip() == "":
-                            self.waluta = "PLN"
-                            break
-                elif self.waluta not in dostepne_waluty:
+                self.waluta = input("Podaj walutę płatności: ")
+                if self.waluta not in dostepne_waluty:
                     print("Podana waluta nie jest dostępna. Wybierz jedną z dostępnych walut.")
+                    continue
                 else:
                     break
 
@@ -239,17 +249,20 @@ class Platnosc:
                     if data.weekday() > 4:
                         while data.weekday() > 4: # Jeśli data przypada na sobotę lub niedzielę, cofnij do ostatniego piatku
                             data -= timedelta(days=1)
-                        self.data_platnosci_piatek = data.strftime('%Y-%m-%d')
-                        break
+                        self.data_platnosci_weekend = data.strftime('%Y-%m-%d')
+                    break
                 except ValueError as e:
                     print(e)
+        else:
+            print("Faktura została dodana pomyślnie")
 
 def menu():
     while True:
         print("Wybierz tryb działania programu:")
         print("1. Tryb interaktywny")
         print("2. Wyswietl fakturę po ID")
-        print("3. Wyjdź")
+        print("3. Uruchom plik wsadowy")
+        print("4. Wyjdź z programu.")
 
         wybor = input("Wybierz opcję: ")
 
@@ -268,15 +281,17 @@ def menu():
                     kurs_faktura = 1
                 else:
                     if faktura.data_wystawienia_weekend is not None:
-
-
+                        dane_faktura, kurs_faktura = pobierz_dane_z_bazy(faktura.waluta, faktura.data_wystawienia_weekend)
                     else:    
                         dane_faktura, kurs_faktura = pobierz_dane_z_bazy(faktura.waluta, faktura.data_wystawienia)
 
                 if platnosc.waluta == "PLN":
                     kurs_platnosc = 1
                 else:
-                    dane_platnosc, kurs_platnosc = pobierz_dane_z_bazy(platnosc.waluta, platnosc.data_platnosci)
+                    if platnosc.data_platnosci_weekend is not None:
+                        dane_platnosc, kurs_platnosc = pobierz_dane_z_bazy(platnosc.waluta, platnosc.data_platnosci_weekend)
+                    else:
+                        dane_platnosc, kurs_platnosc = pobierz_dane_z_bazy(platnosc.waluta, platnosc.data_platnosci)
                 faktura.status = "Nie można pobrać kursu waluty."
                 if kurs_platnosc is not None and kurs_faktura is not None:
                     # Przeliczanie kwoty faktury i płatności w tych samych walutach
@@ -306,18 +321,21 @@ def menu():
                             # Przeliczanie kwoty nadpłaty z powrotem na walutę faktury
                             nadplata = nadplata_w_PLN / kurs_platnosc
                             faktura.status = "Nadpłata: " + str(nadplata)+ " " + str(faktura.waluta)
+                    zapisz_do_pliku(faktura, platnosc)
+                    wyswietl_fakture_po_id(faktura.id)
                 else:
                     print("Nie można pobrać kursu waluty.")
             # Aktualizacja statusu w pliku i wyswietlenie
-            faktura.zapisz_do_pliku(platnosc)
-            wyswietl_fakture_po_id(faktura.id)
         elif wybor == "2":
             max = wczytaj_najwieksze_id()
-            szukane_id = int(input("Podaj id szukanej faktury od 0 do " + str(max) +": "))
+            min = wczytaj_najmniejsze_id()
+            szukane_id = int(input("Podaj id szukanej faktury od " + str(min) + " do " + str(max) +": "))
             wyswietl_fakture_po_id(szukane_id)
         elif wybor == "3":
-            # Wyjście z programu
+            wczytaj_plik_wsadowy_i_zapis_do_pliku()
             break
+        elif wybor == "4":
+            exit()
         else:
             print("Nieznana opcja, spróbuj ponownie.")
 #uruchamianie menu
