@@ -104,8 +104,8 @@ def wczytaj_plik_wsadowy_i_zapis_do_pliku():
         return
     najwieksze_id = wczytaj_najwieksze_id()
     for faktura in faktury:
-        faktura['Faktura']['id'] = najwieksze_id + 1
-        faktura['Platnosc']['id'] = najwieksze_id + 1
+        faktura['faktura']['id'] = najwieksze_id + 1
+        faktura['platnosc']['id'] = najwieksze_id + 1
         najwieksze_id += 1
     if not os.path.exists('faktury.json'):
         with open('faktury.json', 'w') as plik:
@@ -120,14 +120,14 @@ def wczytaj_plik_wsadowy_i_zapis_do_pliku():
 def zapisz_do_pliku(faktura, platnosc):
         #zapisz_do_pliku(faktura, platnosc): Zapisuje dane faktury i płatności do pliku 'faktury.json'.
         dane = {
-            'Faktura': {
+            'faktura': {
                 "id": faktura.id,
                 "kwota": faktura.kwota,
                 "waluta": faktura.waluta,
                 "data_wystawienia": faktura.data_wystawienia,
                 "status": faktura.status,
             },
-            'Platnosc': {
+            'platnosc': {
             "id": platnosc.id_faktury,
             "kwota": platnosc.kwota,
             "waluta": platnosc.waluta,
@@ -139,6 +139,54 @@ def zapisz_do_pliku(faktura, platnosc):
                 plik.write('[]')  # Utwórz pusty plik JSON
         with open('faktury.json', 'a') as f:
             f.write(json.dumps(dane) + "\n")
+
+def porownaj_kursy(faktura,platnosc):
+    # Pobieranie kursów walut
+
+                if faktura.waluta == "PLN":
+                    kurs_faktura = 1
+                else:
+                    if faktura.data_wystawienia_weekend is not None:
+                        dane_faktura, kurs_faktura = pobierz_dane_z_bazy(faktura.waluta, faktura.data_wystawienia_weekend)
+                    else:    
+                        dane_faktura, kurs_faktura = pobierz_dane_z_bazy(faktura.waluta, faktura.data_wystawienia)
+
+                if platnosc.waluta == "PLN":
+                    kurs_platnosc = 1
+                else:
+                    if platnosc.data_platnosci_weekend is not None:
+                        dane_platnosc, kurs_platnosc = pobierz_dane_z_bazy(platnosc.waluta, platnosc.data_platnosci_weekend)
+                    else:
+                        dane_platnosc, kurs_platnosc = pobierz_dane_z_bazy(platnosc.waluta, platnosc.data_platnosci)
+                faktura.status = "Nie można pobrać kursu waluty."
+                if kurs_platnosc is not None and kurs_faktura is not None:
+                    # Przeliczanie kwoty faktury i płatności w tych samych walutach
+                    if faktura.waluta == platnosc.waluta:
+                        if faktura.kwota == platnosc.kwota:
+                            faktura.status = "Opłacona w całości"
+                        elif faktura.kwota > platnosc.kwota:
+                            do_zaplaty = faktura.kwota - platnosc.kwota
+                            faktura.status = "Do zapłaty: " + str(do_zaplaty)+ " " + str(faktura.waluta)
+                        else:   
+                            nadplata = platnosc.kwota - faktura.kwota
+                            faktura.status = "Nadpłata: " + str(nadplata) + " " + str(faktura.waluta)
+                    # Konwersja na zlotowki walut faktury oraz platnosci, poniewaz strona api podaje kursy danych walut własnie w tej walucie.
+                    else:
+                        kwota_faktury_w_PLN = faktura.kwota * kurs_faktura
+                        kwota_platnosci_w_PLN = platnosc.kwota * kurs_platnosc
+                        # Porównanie kwoty faktury i płatności w PLN oraz konwersja do waluty domyślnej
+                        if kwota_faktury_w_PLN == kwota_platnosci_w_PLN:
+                            faktura.status = "Opłacona w całości"
+                        elif kwota_faktury_w_PLN > kwota_platnosci_w_PLN:
+                            do_zaplaty_w_PLN = kwota_faktury_w_PLN - kwota_platnosci_w_PLN
+                            # Przeliczanie kwoty do zapłaty z powrotem na walutę faktury
+                            do_zaplaty = do_zaplaty_w_PLN / kurs_faktura
+                            faktura.status = "Do zapłaty: " + str(do_zaplaty)+ " " + str(faktura.waluta)
+                        else:   
+                            nadplata_w_PLN = kwota_platnosci_w_PLN - kwota_faktury_w_PLN
+                            # Przeliczanie kwoty nadpłaty z powrotem na walutę faktury
+                            nadplata = nadplata_w_PLN / kurs_platnosc
+                            faktura.status = "Nadpłata: " + str(nadplata)+ " " + str(faktura.waluta)
 
 
 class Faktura: 
@@ -196,6 +244,19 @@ class Faktura:
                 break
             except ValueError as e:
                 print(e)
+    def dodaj_platnosc_do_faktury(self, faktury):
+        """
+        Dodaje płatność do faktury o danym ID.
+
+        Parametry:
+        faktury (list): Lista faktur, do której należy dodać płatność.
+        """
+        for faktura in faktury:
+            if faktura['id'] == self.id_faktury:
+                faktura['platnosc'] = self
+                print(f"Dodano płatność do faktury o ID {self.id_faktury}.")
+                return
+        print(f"Nie znaleziono faktury o ID {self.id_faktury}.")
 
 class Platnosc:
     """
@@ -217,6 +278,19 @@ class Platnosc:
         self.waluta = None
         self.data_platnosci = None
         self.data_platnosci_weekend = None
+    def dodaj_platnosc_do_faktury(self, faktury):
+        """
+        Dodaje płatność do faktury o danym ID.
+
+        Parametry:
+        faktury (list): Lista faktur, do której należy dodać płatność.
+        """
+        for faktura in faktury:
+            if faktura['id'] == self.id_faktury:
+                faktura['platnosc'] = self
+                print(f"Dodano płatność do faktury o ID {self.id_faktury}.")
+                return
+        print(f"Nie znaleziono faktury o ID {self.id_faktury}.")
 
     def wprowadz_dane(self, dostepne_waluty):
         oplata = str(input("Czy istnieje płatność do faktury? (Tak/Nie): "))
@@ -274,57 +348,11 @@ def menu():
                 faktura.wprowadz_dane(dostepne_waluty)
                 platnosc = Platnosc(faktura.id)
                 platnosc.wprowadz_dane(dostepne_waluty)
-                
-                # Pobieranie kursów walut
-
-                if faktura.waluta == "PLN":
-                    kurs_faktura = 1
-                else:
-                    if faktura.data_wystawienia_weekend is not None:
-                        dane_faktura, kurs_faktura = pobierz_dane_z_bazy(faktura.waluta, faktura.data_wystawienia_weekend)
-                    else:    
-                        dane_faktura, kurs_faktura = pobierz_dane_z_bazy(faktura.waluta, faktura.data_wystawienia)
-
-                if platnosc.waluta == "PLN":
-                    kurs_platnosc = 1
-                else:
-                    if platnosc.data_platnosci_weekend is not None:
-                        dane_platnosc, kurs_platnosc = pobierz_dane_z_bazy(platnosc.waluta, platnosc.data_platnosci_weekend)
-                    else:
-                        dane_platnosc, kurs_platnosc = pobierz_dane_z_bazy(platnosc.waluta, platnosc.data_platnosci)
-                faktura.status = "Nie można pobrać kursu waluty."
-                if kurs_platnosc is not None and kurs_faktura is not None:
-                    # Przeliczanie kwoty faktury i płatności w tych samych walutach
-                    if faktura.waluta == platnosc.waluta:
-                        if faktura.kwota == platnosc.kwota:
-                            faktura.status = "Opłacona w całości"
-                        elif faktura.kwota > platnosc.kwota:
-                            do_zaplaty = faktura.kwota - platnosc.kwota
-                            faktura.status = "Do zapłaty: " + str(do_zaplaty)+ " " + str(faktura.waluta)
-                        else:   
-                            nadplata = platnosc.kwota - faktura.kwota
-                            faktura.status = "Nadpłata: " + str(nadplata) + " " + str(faktura.waluta)
-                    # Konwersja na zlotowki walut faktury oraz platnosci, poniewaz strona api podaje kursy danych walut własnie w tej walucie.
-                    else:
-                        kwota_faktury_w_PLN = faktura.kwota * kurs_faktura
-                        kwota_platnosci_w_PLN = platnosc.kwota * kurs_platnosc
-                        # Porównanie kwoty faktury i płatności w PLN oraz konwersja do waluty domyślnej
-                        if kwota_faktury_w_PLN == kwota_platnosci_w_PLN:
-                            faktura.status = "Opłacona w całości"
-                        elif kwota_faktury_w_PLN > kwota_platnosci_w_PLN:
-                            do_zaplaty_w_PLN = kwota_faktury_w_PLN - kwota_platnosci_w_PLN
-                            # Przeliczanie kwoty do zapłaty z powrotem na walutę faktury
-                            do_zaplaty = do_zaplaty_w_PLN / kurs_faktura
-                            faktura.status = "Do zapłaty: " + str(do_zaplaty)+ " " + str(faktura.waluta)
-                        else:   
-                            nadplata_w_PLN = kwota_platnosci_w_PLN - kwota_faktury_w_PLN
-                            # Przeliczanie kwoty nadpłaty z powrotem na walutę faktury
-                            nadplata = nadplata_w_PLN / kurs_platnosc
-                            faktura.status = "Nadpłata: " + str(nadplata)+ " " + str(faktura.waluta)
-                    zapisz_do_pliku(faktura, platnosc)
-                    wyswietl_fakture_po_id(faktura.id)
-                else:
-                    print("Nie można pobrać kursu waluty.")
+                porownaj_kursy(faktura,platnosc)
+                zapisz_do_pliku(faktura, platnosc)
+                wyswietl_fakture_po_id(faktura.id)
+            else:
+                print("Nie można pobrać kursu waluty.")
             # Aktualizacja statusu w pliku i wyswietlenie
         elif wybor == "2":
             max = wczytaj_najwieksze_id()
