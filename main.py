@@ -5,6 +5,17 @@ import os
 import random
 
 def wczytaj_i_wyswietl_faktury(plik):
+    """
+    Funkcja wczytuje i wyświetla faktury z pliku JSON.
+
+    Parametry:
+    plik (str): Ścieżka do pliku JSON.
+
+    Funkcja wykonuje następujące kroki:
+    1. Otwiera plik JSON.
+    2. Wczytuje i wyświetla każdą linię pliku jako fakturę.
+    3. W przypadku błędów podczas wczytywania pliku, funkcja wyświetla odpowiedni komunikat o błędzie.
+    """
     try:
         with open(plik, 'r', encoding='UTF-8') as f:
             for linia in f:
@@ -14,6 +25,15 @@ def wczytaj_i_wyswietl_faktury(plik):
         print(f"Błąd podczas wczytywania pliku: {e}")
 
 def wczytaj_plik():
+    """
+    Funkcja wczytuje dane z pliku 'faktury.json'.
+
+    Funkcja wykonuje następujące kroki:
+    1. Otwiera plik 'faktury.json'.
+    2. Wczytuje dane z pliku.
+    3. Zwraca wczytane dane.
+    4. W przypadku błędów podczas wczytywania pliku, funkcja wyświetla odpowiedni komunikat o błędzie i zwraca None.
+    """
     try:
         with open("faktury.json", "r", encoding='UTF-8') as plik:
             faktury = json.load(plik)
@@ -152,6 +172,20 @@ def wczytaj_najmniejsze_id(): #Funkcja tylko i wylacznie do opcji wyswietl faktu
 
 
 def wczytaj_plik_wsadowy_i_zapis_do_pliku(plik_wsadowy):
+    """
+    Funkcja wczytuje dane z pliku wsadowego, przetwarza je i zapisuje do pliku.
+
+    Parametry:
+    plik_wsadowy (str): Ścieżka do pliku wsadowego.
+
+    Funkcja wykonuje następujące kroki:
+    1. Sprawdza, czy plik wsadowy istnieje.
+    2. Wczytuje dane z pliku wsadowego.
+    3. Przetwarza dane, sprawdzając poprawność danych wejściowych.
+    4. Zapisuje przetworzone dane do pliku.
+
+    W przypadku błędów podczas wczytywania lub przetwarzania danych, funkcja wyświetla odpowiedni komunikat o błędzie.
+    """
     if not os.path.exists(plik_wsadowy):
         print("Plik wsadowy nie istnieje.")
         return
@@ -222,7 +256,21 @@ def wczytaj_plik_wsadowy_i_zapis_do_pliku(plik_wsadowy):
         # Sprawdź, czy waluta jest dostępna
 
 def zapisz_do_pliku(faktura, platnosc):
-    
+    """
+    Funkcja zapisuje dane faktury i płatności do pliku JSON.
+
+    Parametry:
+    faktura (dict lub Faktura): Słownik lub obiekt Faktura zawierający dane faktury.
+    platnosc (dict lub Platnosc): Słownik lub obiekt Platnosc zawierający dane płatności.
+
+    Funkcja wykonuje następujące kroki:
+    1. Sprawdza, czy plik 'faktury.json' istnieje. Jeśli nie, tworzy pusty plik JSON.
+    2. Wczytuje dane z pliku 'faktury.json'.
+    3. Dodaje dane faktury i płatności do wczytanych danych.
+    4. Zapisuje aktualizowane dane z powrotem do pliku 'faktury.json'.
+
+    W przypadku błędów podczas wczytywania lub zapisywania danych, funkcja wyświetla odpowiedni komunikat o błędzie.
+    """
     if not os.path.exists('faktury.json'):
         with open('faktury.json', 'w') as plik:
             plik.write('[]')  # Utwórz pusty plik JSON
@@ -319,6 +367,23 @@ def zapisz_do_pliku(faktura, platnosc):
         
 
 def porownaj_kursy(faktura,platnosci):
+    """
+    Funkcja porównuje kursy walut dla faktury i płatności.
+
+    Parametry:
+    faktura (dict lub Faktura): Słownik lub obiekt Faktura zawierający dane faktury.
+    platnosci (list): Lista słowników lub obiektów Platnosc zawierających dane płatności.
+
+    Funkcja wykonuje następujące kroki:
+    1. Przetwarza dane faktury i płatności.
+    2. Pobiera kursy walut dla faktury i płatności.
+    3. Porównuje kwoty faktury i płatności w tych samych walutach.
+    4. Konwertuje kwoty na złotówki, jeśli waluty faktury i płatności są różne.
+    5. Porównuje kwoty faktury i płatności w złotówkach i konwertuje wynik z powrotem na walutę faktury.
+    6. Zwraca status płatności i kwotę do zapłaty lub nadpłatę.
+
+    W przypadku błędów podczas pobierania kursów walut, funkcja zwraca komunikat o błędzie.
+    """
     nadplata = None
     do_zaplaty = None
     if isinstance(faktura, Faktura):
