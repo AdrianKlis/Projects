@@ -1,0 +1,38 @@
+[
+    {
+        "faktura": {
+            "id": "0",
+            "kwota_faktury": 3812.58,
+            "kwota_po_odliczeniu_platnosci": 4568.32,
+            "waluta": "EUR",
+            "data_wystawienia": "2023-03-15",
+            "data_pobrania_kursu": "2023-08-18",
+            "status": "paid"
+        },
+        "platnosc": {
+            "id": "0",
+            "kwota": 4683.14,
+            "waluta": "USD",
+            "data_platnosci": "2022-11-20",
+            "data_pobrania_kursu": "2023-05-20"
+        }
+    },
+    {
+        "faktura": {
+            "id": "1",
+            "kwota_faktury": 3345.13,
+            "kwota_po_odliczeniu_platnosci": 4241.26,
+            "waluta": "JPY",
+            "data_wystawienia": "2021-09-13",
+            "data_pobrania_kursu": "2022-12-26",
+            "status": "unpaid"
+        },
+        "platnosc": {
+            "id": "1",
+            "kwota": 4000.0,
+            "waluta": "JPY",
+            "data_platnosci": "2020-03-07",
+            "data_pobrania_kursu": "2021-09-11"
+        }
+    }
+]
